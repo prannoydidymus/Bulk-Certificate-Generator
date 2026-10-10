@@ -1,313 +1,204 @@
-# Bulk Certificate Generator API 📜🚀
+# Bulk Certificate Generator 📜
 
-A production-ready, high-performance Backend REST API built with **FastAPI**, **SQLAlchemy (SQLite)**, and **ReportLab** that accepts bulk certificate generation requests, processes them efficiently with asynchronous background workers, isolates errors per recipient, tracks job lifecycle progress, and serves generated PDF certificates individually or as bundled ZIP archives.
-
----
-
-## 🌟 Key Features
-
-- **Bulk Certificate Generation**: Submit tens, hundreds, or thousands of recipients in a single API call.
-- **Asynchronous Background Processing**: API immediately responds with `202 Accepted` and a job tracking URL while certificates generate in the background without blocking HTTP requests. (Synchronous mode `?sync=true` also supported).
-- **Fault-Tolerant & Failure Isolation**: An invalid recipient (e.g., missing name or malformed email) or rendering issue fails that single certificate with an explanatory error reason without halting or corrupting the rest of the batch.
-- **Detailed Progress Tracking**: Monitor real-time job status (`PENDING`, `PROCESSING`, `COMPLETED`, `PARTIALLY_COMPLETED`, `FAILED`), recipient metrics, and completion percentage.
-- **Predefined Vector PDF Template**: High-quality landscape A4 certificate with elegant navy/gold double borders, corner ornaments, recipient distinction notes, official verification seals, and custom signatory titles generated using ReportLab.
-- **Flexible Retrieval**: Download individual PDF certificates by certificate ID, or download all generated certificates in a job as a compressed ZIP archive (`/download-all`).
-- **Interactive Documentation**: Built-in Swagger UI (`/docs`) and ReDoc (`/redoc`).
-- **99% Automated Test Coverage**: Comprehensive test suite covering every core feature, edge case, validation failure, and retrieval path.
+A Python backend API that takes a list of participants from an event or course and automatically generates PDF certificates for all of them.
 
 ---
 
-## 🏗️ Architecture & Design Decisions
+## 💡 What Does This Project Do?
 
-### 1. Framework Choice: FastAPI vs. Django / Flask
-- **Why FastAPI**: 
-  - Native asynchronous support and built-in `BackgroundTasks` enable instant, non-blocking HTTP responses for heavy PDF generation jobs.
-  - Automatic request validation and schema serialisation using Pydantic v2.
-  - Auto-generated interactive OpenAPI/Swagger documentation (`/docs`).
-  - High throughput and minimal overhead compared to full-stack frameworks like Django.
+When an organization hosts a webinar, course, or hackathon, generating certificates one-by-one by hand is tedious. 
 
-### 2. Database: Relational Database (SQLite + SQLAlchemy 2.0)
-- **Why SQLite with SQLAlchemy**:
-  - Requires zero external infrastructure (like PostgreSQL or MySQL servers) to run locally or in tests while maintaining full relational integrity, foreign key cascades, and ACID compliance.
-  - SQLAlchemy ORM abstracts the schema, allowing seamless switching to PostgreSQL in production simply by setting the `DATABASE_URL` environment variable.
-  - Schema models:
-    - **`Job`**: Tracks the overall batch (event name, issuer, status, counts, timestamps).
-    - **`Certificate`**: Represents individual recipient certificates linked to `Job` with foreign key, status, file paths, and individual error diagnostics.
-
-### 3. Bulk Processing: Background Worker vs. Synchronous
-- Generating PDFs involves I/O and vector drawing operations. Generating hundreds of certificates synchronously would cause HTTP timeouts on client browsers and API gateways.
-- By default, `POST /api/v1/jobs` registers a background worker task and immediately returns `202 Accepted` with the `job_id` and tracking status URL.
-- Clients can poll `GET /api/v1/jobs/{job_id}` to check real-time progress.
-- An optional `?sync=true` query parameter is provided for automated testing or small scripts that prefer waiting for the completed response.
-
-### 4. Failure Isolation Strategy
-- Instead of rejecting an entire bulk request when one recipient has invalid data (or failing the entire batch mid-way), the processor performs item-level validation and error trapping.
-- Valid recipients produce certificates (`status: SUCCESS`).
-- Invalid or problematic recipients are recorded with `status: FAILED` and an explicit diagnostic message (`error_message: "Validation Error: ..."`).
-- The parent job status automatically reflects the aggregate result:
-  - `COMPLETED`: All recipients succeeded.
-  - `PARTIALLY_COMPLETED`: Some recipients succeeded while others failed.
-  - `FAILED`: All recipients failed.
+This project solves that by providing a REST API where you can:
+1. Send a list of recipient names and details in one single request.
+2. The server generates professional PDF certificates in the background.
+3. If one recipient has invalid information (like an empty name), it marks only that certificate as failed and continues generating all the others.
+4. You can check the progress of the batch and download the generated certificates individually or all together as a `.zip` file.
 
 ---
 
-## 📁 Project Structure
+## 🛠️ Tech Stack
 
-```text
-Bulk-Certificate-Generator/
-├── app/
-│   ├── __init__.py
-│   ├── main.py                     # FastAPI application setup, CORS, lifespan
-│   ├── config.py                   # Configuration and environment settings
-│   ├── database.py                 # SQLAlchemy engine, session maker, get_db dependency
-│   ├── models.py                   # Relational DB models (Job, Certificate)
-│   ├── schemas.py                  # Pydantic v2 schemas for requests & responses
-│   ├── api/
-│   │   ├── __init__.py
-│   │   └── routes.py               # REST API endpoints
-│   └── services/
-│       ├── __init__.py
-│       ├── certificate_generator.py # Predefined ReportLab PDF template generator
-│       ├── job_processor.py        # Batch execution engine & failure isolation logic
-│       └── storage.py              # File storage & ZIP archive bundling
-├── tests/
-│   ├── __init__.py
-│   ├── conftest.py                 # Pytest fixtures (isolated DB & client)
-│   ├── test_jobs.py                # Job lifecycle, async/sync processing tests
-│   ├── test_generator.py           # Unit tests for ReportLab PDF rendering
-│   ├── test_validation.py          # Input validation tests (empty fields, 422 errors)
-│   ├── test_failure_handling.py    # Failure isolation & partial success tests
-│   └── test_retrieval.py           # Certificate & ZIP download tests
-├── requirements.txt                # Pinned production and testing dependencies
-├── run.py                          # Application entry point script
-├── .gitignore                      # Git ignore rules
-└── README.md                       # Complete documentation
-```
+- **Language:** Python
+- **API Framework:** FastAPI (fast, easy to use, comes with interactive web docs)
+- **Database:** SQLite with SQLAlchemy (saves jobs and certificate records)
+- **PDF Generation:** ReportLab (creates clean, vector PDF certificates)
+- **Testing:** Pytest (verifies that everything works properly)
 
 ---
 
-## ⚙️ Installation & Setup
+## 🚀 Getting Started (Setup & Run)
 
-### Prerequisites
-- Python **3.10+** (Tested and compatible with Python 3.10, 3.11, 3.12, 3.13, 3.14)
-- `pip` package manager
+Follow these simple steps to run the project on your machine:
 
-### 1. Clone the Repository
+### Step 1: Clone the Repository
 ```bash
 git clone https://github.com/prannoydidymus/Bulk-Certificate-Generator.git
 cd Bulk-Certificate-Generator
 ```
 
-### 2. Create and Activate a Virtual Environment
-- **On Windows (PowerShell):**
+### Step 2: Create and Activate a Virtual Environment
+- **On Windows:**
   ```powershell
   python -m venv .venv
   .\.venv\Scripts\Activate.ps1
   ```
-- **On Linux / macOS:**
+- **On Mac / Linux:**
   ```bash
   python3 -m venv .venv
   source .venv/bin/activate
   ```
 
-### 3. Install Dependencies
+### Step 3: Install Required Packages
 ```bash
 pip install -r requirements.txt
 ```
 
----
-
-## 🚀 Running the Application
-
-Start the development server with Uvicorn:
+### Step 4: Run the Application
 ```bash
 python run.py
 ```
-Or directly via Uvicorn:
-```bash
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-```
 
-Once started:
-- **API Base URL**: `http://127.0.0.1:8000`
-- **Interactive Swagger UI**: `http://127.0.0.1:8000/docs`
-- **Alternative ReDoc UI**: `http://127.0.0.1:8000/redoc`
-- **Health Check**: `http://127.0.0.1:8000/health`
+The server will start at: **`http://127.0.0.1:8000`**
+
+You can open the interactive API docs directly in your browser at:
+👉 **[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)**
 
 ---
 
-## 🧪 Running Tests
+## 📖 How to Use the API
 
-The test suite runs with `pytest` and verifies input validation, certificate PDF rendering, asynchronous status tracking, individual failure isolation, and certificate retrieval:
+### 1. Submit a Certificate Generation Request
+
+You can test this easily using the Swagger UI at `http://127.0.0.1:8000/docs` or using `curl`:
+
+**Endpoint:** `POST /api/v1/jobs`
+
+**Request Body Example:**
+```json
+{
+  "event_name": "Python for Beginners Workshop",
+  "organization_name": "Code Academy",
+  "issue_date": "October 10, 2026",
+  "signatory_name": "Dr. Sarah Connor",
+  "signatory_title": "Lead Instructor",
+  "recipients": [
+    {
+      "name": "Alice Johnson",
+      "email": "alice@example.com"
+    },
+    {
+      "name": "Bob Smith",
+      "email": "bob@example.com"
+    }
+  ]
+}
+```
+
+**Response (`202 Accepted`):**
+```json
+{
+  "job_id": "b73d6b05-021c-42b7-a3e9-74d6f6e804f9",
+  "message": "Certificate generation job accepted and processing in background.",
+  "status": "PENDING",
+  "total_recipients": 2,
+  "status_url": "http://127.0.0.1:8000/api/v1/jobs/b73d6b05-021c-42b7-a3e9-74d6f6e804f9"
+}
+```
+
+*(Note: If you want the API to wait until all certificates finish before responding, you can add `?sync=true` to the URL).*
+
+---
+
+### 2. Check the Status & Progress of a Job
+
+**Endpoint:** `GET /api/v1/jobs/{job_id}`
+
+Replace `{job_id}` with the ID returned from the first step:
+```bash
+curl http://127.0.0.1:8000/api/v1/jobs/b73d6b05-021c-42b7-a3e9-74d6f6e804f9
+```
+
+**Response shows:**
+- Overall job status (`PENDING`, `PROCESSING`, `COMPLETED`, `PARTIALLY_COMPLETED`)
+- Total, processed, success, and failed counts
+- Progress percentage (e.g. `100.0%`)
+- List of each recipient with their certificate ID, status, and download URL.
+
+---
+
+### 3. Retrieve and Download Certificates
+
+#### Option A: Download an Individual Certificate PDF
+- **Endpoint:** `GET /api/v1/certificates/{certificate_id}/download`
+- Streams the generated `.pdf` file directly to your browser or downloads it.
+
+#### Option B: Download All Certificates as a ZIP Archive
+- **Endpoint:** `GET /api/v1/jobs/{job_id}/download-all`
+- Bundles all successfully generated certificates from that job into a single `.zip` file for quick downloading.
+
+---
+
+## 🧪 Running the Tests
+
+To make sure everything is working properly, run:
 
 ```bash
 pytest -v
 ```
 
-To run with test coverage reporting:
+All 24 automated tests will run and pass!
+
+To check test coverage:
 ```bash
 pytest --cov=app --cov-report=term-missing
 ```
 
-*(Current test suite passes **24/24 tests** with **99% total coverage**).*
+---
+
+## 🧠 Simple Design Decisions Explained
+
+Here is why certain decisions were made in this project:
+
+1. **Why FastAPI?**  
+   FastAPI is lightweight, modern, and has built-in support for background tasks. It also gives us interactive API documentation (`/docs`) automatically.
+
+2. **Why Background Processing?**  
+   Generating PDF files takes time. If a user submits 500 recipients, doing it synchronously would freeze the request and cause browser timeouts. By generating in the background, the API responds right away with `202 Accepted` and lets the client check progress at any time.
+
+3. **Why Failure Isolation?**  
+   If someone accidentally submits an invalid recipient (e.g. empty name or bad email), we shouldn't throw away the whole batch of 100 people. The system marks only the bad entry as `FAILED` (with a clear explanation like "Recipient name is required") and successfully creates certificates for everyone else.
+
+4. **Why SQLite & SQLAlchemy?**  
+   SQLite is built into Python and requires zero complicated database setup to run locally. SQLAlchemy organizes our tables (`jobs` and `certificates`) so they can easily scale to PostgreSQL in the future if needed.
+
+5. **Why ReportLab?**  
+   ReportLab draws crisp vector PDFs with borders, text, seals, and signatures directly in Python without needing external browser tools or heavyweight engines.
 
 ---
 
-## 📡 API Reference & Usage Guide
+## 📂 Project Structure
 
-### 1. Submit a Certificate Generation Request
-
-- **Endpoint**: `POST /api/v1/jobs`
-- **Query Parameter (Optional)**: `?sync=true` (Runs synchronously and returns 201; default is false which returns 202 and runs in background).
-- **Request Body**:
-  ```json
-  {
-    "event_name": "Full Stack Web Development Masterclass",
-    "organization_name": "Tech Academy International",
-    "issue_date": "October 10, 2026",
-    "signatory_name": "Dr. Sarah Connor",
-    "signatory_title": "Head of Certification",
-    "recipients": [
-      {
-        "name": "Alice Johnson",
-        "email": "alice@example.com",
-        "custom_note": "Graduated with Honors"
-      },
-      {
-        "name": "Bob Smith",
-        "email": "bob@example.com"
-      },
-      {
-        "name": "",
-        "email": "invalid_user@example.com"
-      }
-    ]
-  }
-  ```
-
-- **Example `curl` Request**:
-  ```bash
-  curl -X POST "http://127.0.0.1:8000/api/v1/jobs" \
-       -H "Content-Type: application/json" \
-       -d '{
-         "event_name": "Full Stack Web Development Masterclass",
-         "organization_name": "Tech Academy International",
-         "recipients": [
-           {"name": "Alice Johnson", "email": "alice@example.com"},
-           {"name": "Bob Smith", "email": "bob@example.com"}
-         ]
-       }'
-  ```
-
-- **Response (`202 Accepted`)**:
-  ```json
-  {
-    "job_id": "b73d6b05-021c-42b7-a3e9-74d6f6e804f9",
-    "message": "Certificate generation job accepted and processing in background.",
-    "status": "PENDING",
-    "total_recipients": 2,
-    "status_url": "http://127.0.0.1:8000/api/v1/jobs/b73d6b05-021c-42b7-a3e9-74d6f6e804f9"
-  }
-  ```
-
----
-
-### 2. Check Job Progress & Results
-
-- **Endpoint**: `GET /api/v1/jobs/{job_id}`
-- **Example `curl` Request**:
-  ```bash
-  curl -X GET "http://127.0.0.1:8000/api/v1/jobs/b73d6b05-021c-42b7-a3e9-74d6f6e804f9"
-  ```
-
-- **Response (`200 OK`)**:
-  ```json
-  {
-    "id": "b73d6b05-021c-42b7-a3e9-74d6f6e804f9",
-    "event_name": "Full Stack Web Development Masterclass",
-    "organization_name": "Tech Academy International",
-    "issue_date": "October 10, 2026",
-    "signatory_name": "Dr. Sarah Connor",
-    "signatory_title": "Head of Certification",
-    "status": "PARTIALLY_COMPLETED",
-    "total_recipients": 3,
-    "processed_count": 3,
-    "success_count": 2,
-    "failed_count": 1,
-    "progress_percentage": 100.0,
-    "created_at": "2026-10-10T12:50:00Z",
-    "completed_at": "2026-10-10T12:50:01Z",
-    "certificates": [
-      {
-        "id": "e93ab7e2-78d1-443f-b648-912fbbd279cf",
-        "job_id": "b73d6b05-021c-42b7-a3e9-74d6f6e804f9",
-        "recipient_name": "Alice Johnson",
-        "recipient_email": "alice@example.com",
-        "certificate_code": "CERT-B73D6B05-E93AB7",
-        "status": "SUCCESS",
-        "file_size": 2420,
-        "error_message": null,
-        "download_url": "http://127.0.0.1:8000/api/v1/certificates/e93ab7e2-78d1-443f-b648-912fbbd279cf/download",
-        "created_at": "2026-10-10T12:50:00Z"
-      },
-      {
-        "id": "f10cd832-10f8-48b4-8cf1-97b5d2036c0a",
-        "job_id": "b73d6b05-021c-42b7-a3e9-74d6f6e804f9",
-        "recipient_name": "",
-        "recipient_email": "invalid_user@example.com",
-        "certificate_code": "CERT-B73D6B05-F10CD8",
-        "status": "FAILED",
-        "file_size": null,
-        "error_message": "Validation Error: Recipient name is required and cannot be blank.",
-        "download_url": null,
-        "created_at": "2026-10-10T12:50:00Z"
-      }
-    ]
-  }
-  ```
-
----
-
-### 3. Retrieve & Download Generated Certificates
-
-#### Download an Individual Certificate PDF:
-- **Endpoint**: `GET /api/v1/certificates/{certificate_id}/download`
-- **Example `curl` Request**:
-  ```bash
-  curl -O -J "http://127.0.0.1:8000/api/v1/certificates/e93ab7e2-78d1-443f-b648-912fbbd279cf/download"
-  ```
-- Returns the PDF binary with headers:
-  - `Content-Type: application/pdf`
-  - `Content-Disposition: attachment; filename="Certificate_Alice_Johnson_CERT-B73D6B05-E93AB7.pdf"`
-
-#### Download All Job Certificates as a ZIP Archive:
-- **Endpoint**: `GET /api/v1/jobs/{job_id}/download-all`
-- **Example `curl` Request**:
-  ```bash
-  curl -O -J "http://127.0.0.1:8000/api/v1/jobs/b73d6b05-021c-42b7-a3e9-74d6f6e804f9/download-all"
-  ```
-- Returns a ZIP archive containing all successfully generated certificates for that job.
-
----
-
-### 4. List All Jobs
-
-- **Endpoint**: `GET /api/v1/jobs?status=COMPLETED&skip=0&limit=20`
-- **Example `curl` Request**:
-  ```bash
-  curl -X GET "http://127.0.0.1:8000/api/v1/jobs"
-  ```
-
----
-
-## 🔒 Security & Quality Standards
-
-- **Input Sanitization**: File names for downloads are safely sanitized to prevent path traversal.
-- **Thread Safety**: SQLite is configured with non-blocking threading modes (`check_same_thread=False`).
-- **Resource Cleanup**: In-memory ZIP streaming avoids leftover temporary files.
-- **Graceful Error Responses**: Clear HTTP error codes (400, 404, 422) with descriptive JSON messages.
+```text
+Bulk-Certificate-Generator/
+├── app/
+│   ├── main.py                     # Entry point of the FastAPI application
+│   ├── config.py                   # App settings (folders, database path)
+│   ├── database.py                 # SQLite database connection setup
+│   ├── models.py                   # Database tables (Job and Certificate)
+│   ├── schemas.py                  # Input validation models
+│   ├── api/
+│   │   └── routes.py               # API endpoints (create, check status, download)
+│   └── services/
+│       ├── certificate_generator.py # Draws the PDF certificate template
+│       ├── job_processor.py        # Validates recipients & processes jobs
+│       └── storage.py              # Saves files and creates zip archives
+├── tests/                          # Automated tests covering all cases
+├── requirements.txt                # List of Python dependencies
+├── run.py                          # Simple script to run the server
+└── README.md                       # This guide
+```
 
 ---
 
 ## 📄 License
-This project is open-source and available under the [MIT License](LICENSE).
+This project is open-source under the [MIT License](LICENSE).
